@@ -1,4 +1,4 @@
-Package: doe.testR
+Package: DOEtestR
 Title: Generador de examenes de Diseño de Experimentos
 Version: 2.1.0
 Authors@R: 
