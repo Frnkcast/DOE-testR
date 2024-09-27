@@ -1,0 +1,37 @@
+Package: doe.testR
+Title: Generador de examenes de Diseño de Experimentos
+Version: 2.1.0
+Authors@R: 
+    person("Francisco", "Castillo-Escalante", , "castillopaco@gmail.com", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0003-4267-3281"))
+Description: Contiene funciones para generar ejercicios y examenes para un curso de Diseño de Experimentos. En la versión actual, contiene las funcionalidades para desarrollar ejercicios de Media Muestral, Prueba de Hipotesis para comparación de medias, Anova de 1 Factor y Pruebas Post-Hoc. Incluye desarrollo de un sistema de directorio de tablas relacionales para el manejo de todos los ejercicios y examenes desarrollados. Para la version 2.0.0 se diseñó un Command Line Interface para facilitar el uso de la libreria - para usarla, se llama a la variable ´doeExam()´.
+License: AGPL (>= 3)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends: 
+    R (>= 2.10)
+Imports:
+    dplyr,
+    stringr,
+    car,
+    forcats,
+    readr,
+    tidyr,
+    ids,
+    rcorpora,
+    knitr,
+    kableExtra,
+    tibble,
+    agricolae,
+    magrittr,
+    here,
+    folders,
+    cli,
+    lubridate,
+    stats,
+    utils
+LazyData: true
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
