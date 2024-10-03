@@ -270,7 +270,7 @@ rep_D_A1 <- function(DB){
 #'
 #' @param Data Fila de la tabla de datos a describir
 #'
-#' @return
+#' @return Apoyo para la construccion de un archivo de texto
 #'
 #' @examples
 rep_PostHoc <- function(Data){
@@ -294,7 +294,7 @@ rep_PostHoc <- function(Data){
   x1_HSD <- Data$tukey[[1]][[6]]
 
   x1_PostHoc <- list(outer(x1pw, x1_LSD, FUN = ">")[,,1],
-                     outer(x1pw, x1_LSD, FUN = ">")[,,1]) #[[1]] es LSD, [[2]] es HSD
+                     outer(x1pw, x1_HSD, FUN = ">")[,,1]) #[[1]] es LSD, [[2]] es HSD
 
   #return(x1_PostHoc)
 
@@ -330,7 +330,7 @@ rep_PostHoc <- function(Data){
 #' @param Ques Tabla de ejercicios generados a parir de la tabla de datos muestrales
 #' @param i Id de la pregunta especifica a describir
 #'
-#' @return
+#' @return Genera un archivo de texto
 #'
 #' @examples
 rep_Q_A1 <- function(Data,Ques,i){
@@ -374,3 +374,309 @@ rep_Q_A1 <- function(Data,Ques,i){
   cat("-----------------------------------------------------------\n")
   cat("\n")
 }
+
+
+#### TEMA 4 - Anova 1F + Bloque -------------------
+
+## Reporte de sets de datos
+#' Anova 1F + Bloque: Reporte de sets de datos
+#'
+#' @param DB Tabla de datos muestrales
+#'
+#' @return Genera un archivo de texto
+#'
+#' @examples
+rep_D_AB <- function(DB){
+  outpath <- paste0(attr(DB,"DBname"), ".txt")  
+  
+  sink(outpath)
+  on.exit(sink())
+  cat("Inicializando.... Base de datos muestrales simulados","\n")
+  cat("   id: ", attr(DB, "id_bytes"), "\n")
+  cat("   id: ", attr(DB, "id_pokemon"), "\n")
+  cat("- Elaborado en: ", attr(DB,"Fecha"), "\n")
+  cat("- Para el tema: ", attr(DB,"Tema"),"\n\n") 
+  for(i in 1:length(DB$id)){
+    cat("-----------------------------------------------------------\n")
+    cat(" Entrada #: ", as.character(DB[[i,"id"]]), "\n")
+    cat("-----------------------------------------------------------\n")
+    cat("   # Niveles de A: ", as.character(DB[[i,"a"]]), "\n")
+    cat("   # Niveles de B (Bloque): ", as.character(DB[[i,"b"]]), "\n \n")
+    cat("Datos crudos: \n")
+    cat(knitr::kable(DB[[i,"data"]], "pipe"))
+    cat("\n\n")
+    cat("#-- Diseño con Bloques --# \n")
+    cat("Tabla de ANOVA: \n")
+    cat(knitr::kable(DB[[i,"anova"]], "pipe"), "\n")
+    cat("\n")
+    cat("   F estadistica: ", DB[[i,"Fes"]], "\n")
+    cat("   F critica: ", DB[[i,"Fcr"]], "\n")
+    cat("\n")
+    cat("   Comparación F0 vs Fest: ", DB[[i,"signif"]])
+    cat("\n")
+    cat("   Conclusión sobre H0: ", DB[[i,"H0"]])
+    cat("\n \n")
+    cat("#-- Diseño sin Bloques --# \n")
+    cat("Tabla de ANOVA: \n")
+    cat(knitr::kable(DB[[i,"anova_NB"]], "pipe"), "\n")
+    cat("\n")
+    cat("   F estadistica: ", DB[[i,"Fes_NB"]], "\n")
+    cat("   F critica: ", DB[[i,"Fcr_NB"]], "\n")
+    cat("\n")
+    cat("   Comparación F0 vs Fest: ", DB[[i,"signif_NB"]])
+    cat("\n")
+    cat("   Conclusión sobre H0: ", DB[[i,"H0_NB"]])
+    cat("\n")
+    if (DB[[i,"H0"]] == DB[[i,"H0_NB"]]){
+      diffNB <- "El bloque no genera diferencia en la conclusión"
+    }else {
+      diffNB <- "El bloque cambia la conclusión"
+    }
+    cat("   ¿Diferente con resepcto al diseño con Bloques?: ", diffNB)
+    cat("\n \n")
+    cat("Pruebas Post Hoc: \n")
+    
+    rep_PostHoc(DB[i,])
+    
+    #cat("   Fisher: \n")
+    #cat(knitr::kable(DB[[i,"lsd"]], "pipe"), "\n")
+    #cat(knitr::kable(DB[[i,"lsd_groups"]], "pipe"), "\n")
+    #cat("\n")
+    #cat("   Tukey: \n")
+    #cat(knitr::kable(DB[[i,"tukey"]], "pipe"), "\n")
+    #cat(knitr::kable(DB[[i,"tukey_groups"]], "pipe"), "\n")
+    cat("-----------------------------------------------------------\n")
+    cat("\n")
+  }
+  sink()
+  file.show(outpath)
+}
+
+## Reporte de preguntas elaboradas
+#' Anova 1F + Bloque: Reporte de preguntas elaboradas
+#'
+#' @param Data Tabla de datos muestrales
+#' @param Ques Tabla de ejercicios generados a parir de la tabla de datos muestrales
+#' @param i Id de la pregunta especifica a describir
+#'
+#' @return Genera un archivo de texto
+#'
+#' @examples
+rep_Q_AB <- function(Data,Ques,i){
+  
+  cat("-----------------------------------------------------------\n")
+  cat(" Entrada ", i,"B --  ", as.character(Ques[[i,"code"]]), "\n")
+  cat("-----------------------------------------------------------\n\n")
+  cat("   # Niveles de A: ", as.character(Data$a[[match(Ques$id[i], Data$id)]]), "\n")
+  cat("   # Niveles de B (Bloque): ", as.character(Data$b[[match(Ques$id[i], Data$id)]]), "\n \n")
+  cat("  Enunciado:::  \n")
+  #cat(DB[[i,"out"]], "\n")
+  
+  cat(Ques[[i,"statem"]], "\n\n")
+  
+  cat("  Datos::  \n")
+  cat(knitr::kable(Ques[[i,"table"]], "pipe"), "\n\n")
+  
+  #cat("\n\n")
+  cat("  Preguntas y sus respuestas:: \n\n")
+  
+  cat("- A1 (2 pts) Reporta la suma de cuadrados de los tratamientos (SSt), del bloque (SSb) y del error (SSE), redondeando a 3 cifras significativas. Importante: indica en tu respuesta cual es cual", "\n")
+  cat("- A2 (2 pts) Reporta la media de cuadrados de los tratamientos (MSt), del bloque (MSb) y del error (MSE) a 3 cifras significativas. Importante: indica en tu respuesta cual es cual.", "\n")
+  cat("- A3 (1 pts) Reporta tu estadistico de prueba, F0", "\n")
+  cat("Res: \n")
+  cat(knitr::kable(Ques[[i,"table2"]], "pipe"),  "\n\n")
+  
+  cat("- A4 (1 pts) A partir del F0 calculado, y el Fcritico (revisa el enunciado del problema) para una confianza del 95%, considerando una hipotesis nula donde ninguno de los niveles del factor afectan a la variable de respuesta, y una hipotesis alternativa donde al menos uno de los niveles tiene un efecto significativo. ¿Puedes concluir en que la hipotesis nula se rechaza o no? Escribe el enunciado completo de la conclusión, usando la definición de las variables involucradas. ", "\n")
+  Signi <- dplyr::case_when(
+    Data$signif[[match(Ques$id[i], Data$id)]] == "Signif" ~ "Se rechaza H0. El factor A es significativo.",
+    Data$signif[[match(Ques$id[i], Data$id)]] == "No signif" ~ "No se rechaza H0. El factor A no es significativo.")
+  cat("Res: \n    ", Signi, "\n\n")
+  
+  cat("- A5 (2 pts) Realiza una Prueba de Tukey de Comparaciones Múltiples para identificar cual (o cuales) de los niveles del factor A es (o son) significativamente diferente del resto. (En el enunciado del problema está el valor del estadistico q de Tukey a utilizar para la prueba)", "\n")
+  cat("Res: \n")
+  cat(knitr::kable(list(Data$tukey[[match(Ques$id[i], Data$id)]]), "pipe"), "\n")
+  cat(knitr::kable(list(Data$tukey_groups[[match(Ques$id[i], Data$id)]]), "pipe"), "\n")
+  
+  ### Matriz de comparacion...
+  #Data$signif_NB[[match(Ques$id[i], Data$id)]]
+  x1 <- Data$data[[match(Ques$id[i], Data$id)]] #La Tabla
+  ## Calcula los promedios por nivel de la variable
+  x1m <- x1 %>% tidyr::gather(key = "X", value = "Y", A1:last_col())%>%
+    dlyr::group_by(X) %>% dplyr::summarise(Y=mean(Y))
+  ## Prepara la matriz de comparación por parejas
+  names(x1m$Y) <- x1m$X
+  x1pw <- abs(outer(x1m$Y, x1m$Y, FUN = "-"))
+  x1pw <- upper.tri(x1pw)*x1pw
+  x1pw[x1pw == 0] <- NA
+  #x3pw
+  ## Guarda los valores de LSD y HSD 
+  x1_LSD <- Data$lsd[[match(Ques$id[i], Data$id)]][[6]]
+  x1_HSD <- Data$tukey[[match(Ques$id[i], Data$id)]][[6]]
+  x1_PostHoc <- list(
+    outer(x1pw, x1_LSD, FUN = ">")[,,1],
+    outer(x1pw, x1_HSD, FUN = ">")[,,1]
+  ) #[[1]] es LSD, [[2]] es HSD
+  ###########;
+  
+  cat(knitr::kable(x1_PostHoc[2],"pipe"))
+  cat("\n\n")
+  
+  cat("- A6 (2 pts)  Vuelve a realizar tu analisis ANOVA, pero ahora sin considerar la variable Bloque, recordando ajustar las sumas de cuadrados y grados de libertad apropiados. El valor de F critico a utilizar se encuentra en el enunciado de este problema. ¿Identificas alguna diferencia con respecto a tu conclusión anterior? ¿Qué puedes concluir con respecto al bloque incorporado en este experimento?", "\n")
+  cat("Res:\n", knitr::kable(Data$anova_NB[[match(Ques$id[i], Data$id)]], "pipe"), "\n")
+  cat("    ", dplyr::case_when(
+    Data$signif_NB[[match(Ques$id[i], Data$id)]] == "Signif" ~ "Se rechaza H0. El factor A es significativo",
+    Data$signif_NB[[match(Ques$id[i], Data$id)]] == "No signif" ~ "No se rechaza H0. El factor A no es significativo"),
+    "\n")
+  
+  cat("    ", dplyr::case_when(
+    Data$signif[[match(Ques$id[i], Data$id)]] != Data$signif_NB[[match(Ques$id[i], Data$id)]] ~ "Quitar el bloque cambia la conclusión sobre H0",
+    Data$signif[[match(Ques$id[i], Data$id)]] == Data$signif_NB[[match(Ques$id[i], Data$id)]] ~ "Quitar el bloque no cambia la conclusion sobre H0"),
+    "\n\n")
+  
+  cat("\n")
+  cat("-----------------------------------------------------------\n")
+  cat("\n")
+  
+}
+
+#### TEMA 5 - Diseño 2^k -------------------
+## Reporte de sets de datos
+#' Diseño 2^k: Reporte de sets de datos
+#'
+#' @param DB Tabla de datos muestrales
+#'
+#' @return Genera un archivo de texto
+#'
+#' @examples
+rep_D_2k <- function(DB){
+  #outpath <- paste0(out, ".txt")
+  outpath <- paste0(attr(DB,"DBname"), ".txt")  
+  
+  sink(outpath)
+  cat ("Inicializando.... Base de datos: ",  deparse(substitute(DB)), "\n")
+  for(i in 1:length(DB$id)){
+    cat("-----------------------------------------------------------\n")
+    cat(" Entrada #: ", as.character(DB[[i,1]]), "\n")
+    cat("-----------------------------------------------------------\n")
+    cat("   # Factores: ", as.character(DB[[i,4]]), "\n")
+    cat("   Replicas: ", as.character(DB[[i,5]]), "\n \n")
+    cat("Datos crudos: \n")
+    cat(knitr::kable(DB[[i,2]], "pipe"))
+    cat("\n \n")
+    df <- as.data.frame(DB[[i,2]]) %>% 
+      tidyr::gather(key="rep", value = "Y", Y:last_col()) %>% 
+      dplyr::select(-rep)
+    model <- lm(Y~(.)^6,df)
+    dfCoEf <- as.data.frame((coefficients(model)))  %>% 
+      tibble::rownames_to_column("Factor") %>% 
+      dplyr::transmute(Factor,Coef =(coefficients(model)),Eff=Coef*2) %>% 
+      dplyr::mutate_if(is.numeric,round,3)  #Guarda Coeficientes y Efectos en un DF
+    
+    cat("\n Tabla de Efectos y Coeficientes: \n")
+    cat(knitr::kable(list(dfCoEf), "pipe"))
+    cat("\n \n")
+    cat("Tabla de ANOVA: \n")
+    cat(knitr::kable(DB[[i,3]], "pipe"), "\n")
+    cat("\n")
+    cat("   F critica: ", DB[[i,9]], "\n")
+    cat("\n")
+    cat("   Efectos significaivos: ", paste(DB[[i,10]]))
+    cat("\n")
+    cat("   Ecuación de Regresion: ", DB[[i,12]])
+    cat("\n \n")
+    cat("Predicción de la respuesta con el mejor modelo: \n")
+    cat(knitr::kable(DB[[i,13]], "pipe"), "\n")
+    cat("\n")
+    cat("Mejor combinación de niveles \n")
+    cat("   - Minimizar: \n")
+    cat(knitr::kable(DB[[i,15]], "pipe"), "\n")
+    cat("   - Maximizar: \n")
+    cat(knitr::kable(DB[[i,14]], "pipe"))
+    cat("\n \n")
+    cat("-----------------------------------------------------------\n")
+    cat("\n")
+  }
+  sink()
+  file.show(outpath)
+}
+
+## Reporte de preguntas elaboradas
+#' Diseño 2^k: Reporte de preguntas elaboradas
+#'
+#' @param Data Tabla de datos muestrales
+#' @param Ques Tabla de ejercicios generados a parir de la tabla de datos muestrales
+#' @param i Id de la pregunta especifica a describir
+#'
+#' @return Genera un archivo de texto
+#'
+#' @examples
+rep_Q_2k <- function(Data, Ques, i){
+  cat("-----------------------------------------------------------\n")
+  cat(" Entrada ", i,"#: -- ", as.character(Ques[[i,"code"]]), "\n")
+  cat("-----------------------------------------------------------\n")
+  cat("   # Factores: ", as.character(Data$k[[match(Ques$id[i], Data$id)]]), "\n")
+  cat("   Replicas: ", as.character(Data$n[[match(Ques$id[i], Data$id)]]), "\n \n")
+  
+  cat("  Enunciado:::  \n")
+  #cat(DB[[i,"out"]], "\n")
+  cat(Ques[[i,"statem"]], "\n\n")
+  
+  cat("  Datos::  \n")
+  cat(knitr::kable(Data$data[[match(Ques$id[i], Data$id)]], "pipe"), "\n\n")
+  
+  cat("  Preguntas y sus respuestas:: \n\n")
+  
+  cat("- B1 (2 pts) Calcula y reporta los efectos de los factores principales y las interacciones. \n")
+  cat("Res: \n")
+  
+  df <- as.data.frame(Data$data[[match(Ques$id[i], Data$id)]]) %>% 
+    tidyr::gather(key="rep", value = "Y", Y:last_col()) %>% 
+    dplyr::select(-rep)
+  model <- lm(Y~(.)^6,df)
+  dfCoEf <- as.data.frame((coefficients(model)))  %>% 
+    tibble::rownames_to_column("Factor") %>% 
+    dplyr::mutate(Coef=(coefficients(model)),Efecto=Coef*2)
+  dplyr::transmute(Factor,Efecto,Coef) %>% 
+    dplyr::mutate_if(is.numeric,round,3)  #Guarda Coeficientes y Efectos en un DF
+  #cat("\n Tabla de Efectos y Coeficientes: \n")
+  cat(knitr::kable(list(dfCoEf), "pipe"))
+  cat("\n\n")
+  
+  cat("- B2 (2 pts) En tu hoja de respuestas, dibuja las gráficas de Efectos Principales para los 3 factores. En el espacio a continuación (aqui en Canvas) explica si, a partir de las gráficas, pudiera identificar si uno de los factores pareciera tener un efecto significativo, y explica por qué. \n")
+  cat("Res: NA \n ")
+  cat("\n\n")
+  
+  cat("- B3 (3 pts) Realiza un analisis de varianza Anova y reporta cuales factores e interacciones son significativos. Utiliza un alfa de 0.05 (el valor de F critico a utilizar en las comparaciones está dado en el enunciado del problema) \n")
+  cat("Res: \n")
+  cat(knitr::kable(Data$anova[[match(Ques$id[i], Data$id)]], "pipe"), "\n")
+  cat("Significativos: ", Data$sign[[match(Ques$id[i], Data$id)]][[1]])
+  cat("\n\n")
+  
+  cat("- B4 (1 pts) A partir de los factores e interacciones que resultaron significativos, da el Modelo de Regresión Abreviado (unicamente con los coeficientes de los  factores e interacciones que resultaron significativos) \n")
+  cat("Res: \n")
+  cat("Ecuacion de regresion abreviada ", Data$EqR[[match(Ques$id[i], Data$id)]])
+  cat("\n\n")
+  
+  cat("Predicción de la respuesta con el mejor modelo: \n")
+  cat(knitr::kable(Data$Fit[[match(Ques$id[i], Data$id)]], "pipe"), "\n")
+  cat("\n")
+  
+  cat("- B5 (2 pts) Utilizando la formula del modelo de regresión abreviada, de la pregunta anterior, contesta:
+        a) ¿Cuál es el valor minimo de la variable respuesta predicho por el modelo abreviado
+        b) ¿Qué combinación de niveles en unidades originales (es decir, NO como -1 y +1) de las variables sugerirías para minimizar la respuesta? \n")
+  cat("Res: \n")
+  cat("   - Minimizar: \n")
+  cat(knitr::kable(Data$Fit_Min[[match(Ques$id[i], Data$id)]], "pipe"), "\n\n")
+  
+  cat("- B6 (2 pts) Utilizando la formula del modelo de regresión abreviada, de la pregunta anterior, contesta:
+        a) ¿Cuál es el valor maximo de la variable respuesta predicho por el modelo abreviado
+        b) ¿Qué combinación de niveles en unidades originales (es decir, NO como -1 y +1) de las variables sugerirías para maximizar la respuesta? \n")
+  cat("Res: \n")
+  cat("   - Maximizar: \n")
+  cat(knitr::kable(Data$Fit_Max[[match(Ques$id[i], Data$id)]], "pipe"))
+  cat("\n \n")
+  cat("-----------------------------------------------------------\n")
+  cat("\n")
+  
+}
+

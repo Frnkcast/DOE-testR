@@ -323,7 +323,6 @@ questionMediaMuestral <- function(Data,Q,format="HTML",silent=T){
 
 
 #### TEMA 2 - Prueba de Hipotesis -------------------
-
 ## Generador de datos -------------------------------
 #' Prueba de Hipotesis: Generador de datos muestrales
 #'
@@ -704,7 +703,6 @@ questionPruebaHipotesis <- function(Data,Q,format = "HTML", silent = T){
 }
 
 
-
 #### TEMA 3 - Anova de 1 Factor -------------------
 
 ## Generador de datos --------------------------------
@@ -926,7 +924,7 @@ question1Anova <- function(Data,Q,format = "HTML", lang = "Esp", silent = T){
     x2 = c("Tabla de datos","Tabla de ANOVA","Raw data","ANOVA table"),
     x3 = rep(c(1,2), 2))
 
-  #### IMPRIME ENUNCIADOS ####
+  #####------------- IMPRIME ENUNCIADOS
 
   #... Nota: Sobre el cambio de idioma. Los elementos que cambian de idioma son "statement", "datatype", "anovT", "Fconf", "caption"
   # "statement" ahora es una tabla, Lang es una columna. statement[statement$Lang == "Esp",]
@@ -1066,4 +1064,944 @@ question1Anova <- function(Data,Q,format = "HTML", lang = "Esp", silent = T){
   }
 
   return(Ques2)
+}
+
+
+#### TEMA 4 - Anova 1Factor + Bloque -------------------
+
+## Generador de datos ----------------------------
+#' Anova 1F + Bloque: Generador de datos muestrales
+#'
+#' Ver 2.1.1 - Cambios menores para importar funciones externas
+#' Ver 2.1 - Incluye integracion al directorio.
+#  Ver 2.0
+#' @param r Numero de sets de datos a generar
+#'
+#' @return Una tabla de datos, se guarda en un archivo, y se puede asignar a un objeto
+#' @export
+#'
+#' @examples
+gen1FBlock <- function(r){
+  
+  ####-------- Incializa la Base de Datos
+  DB <- tibble::tibble(id = numeric(),
+                       data = list(),
+                       a = numeric(),
+                       b = numeric(),
+                       alfa = numeric(),
+                       mu = numeric(),
+                       sigma = numeric(),
+                       #Modelo con Bloque
+                       anova = list(),
+                       Fes = numeric(),
+                       Fcr = numeric(),
+                       signif = character(),
+                       H0 = character(),
+                       #Modelo sin Bloque
+                       anova_NB = list(),
+                       Fes_NB = numeric(),
+                       Fcr_NB = numeric(),
+                       signif_NB = character(),
+                       H0_NB = character(),
+                       #Post-Hoc
+                       lsd = list(),
+                       lsd_groups = list(),
+                       tukey = list(),
+                       tukey_groups = list())
+  
+  #### Generador de ANOVAs
+  for (L in 1:r) { #10 SETS
+    #n <- round(runif(1,3,5)) #Replicas
+    a <- round(runif(1,3,5)) #Tratamientos
+    b <- round(runif(1,3,5)) #Bloques
+    df <- tibble::tibble(B = 1:b) %>% # Añadir indice (bloques) para evitar un error
+      mutate(B = str_c("B",B)) # Nombra a los bloques como tal para evitar confusión
+    
+    X <- numeric()
+    #k <- 3
+    mu <- abs(runif(1,1,100))
+    sigma <- abs(runif(1,1,100))/(mu)
+    
+    
+    ####-------------- Generación de tabla de datos
+    for (i in 1:a){
+      X <- matrix(abs(rnorm(b,rnorm(1,mu,sigma),rnorm(1,sigma,sigma/mu)))) #Generar columna por columna ##
+      df <- df %>% tibble::add_column(X, .name_repair = make.unique) #Añadir la columna al dataframe
+    }
+    
+    names <- c()
+    #-- Selecciona un vector para los nombres de los tratamientos segun el numero de tratamientos
+    if(a == 3){
+      names <- c("A1","A2","A3")
+    }else if(a == 4){
+      names <- c("A1","A2","A3","A4")
+    }else if(a == 5){
+      names <- c("A1","A2","A3","A4","A5")}
+    
+    df <- df %>% dplyr::mutate_if(is.numeric,round,digits=2) #Redondear numeros, pero no quitar indice
+    
+    ###------- Genera ANOVA
+    df_reorder <- df %>% 
+      tidyr::gather(key = "X", value = "Y", 2:last_col()) %>% #Junta los datos en una columna
+      dplyr::mutate(X = factor(X))
+    
+    #df_reorder
+    model_B <- lm(Y~X+B,df_reorder) #Genera modelo 1F+B
+    #summary(aov(model_B)) #ANOVA con Bloque
+    
+    model_NB <- lm(Y~X,df_reorder) #Genera modelo 1F sin Bloque
+    #summary(aov(model_NB)) #ANOVA sin Bloque
+    
+    #Formato a la tabla de datos
+    df <- df %>% tidyr::gather(key = "X", value = "Y", 2:last_col()) %>% 
+      dplyr::mutate(X = forcats::fct_recode(X,!!!setNames(levels(df_reorder$X), names))) %>% #Cambiar nombre de tratamientos a A1,A2,A3
+      tidyr::spread(key = "X", value = "Y") #%>% select(!i) #Vuelve a restructurar la lista  
+    
+    ##Parsear tabla de ANOVA (Bloque) en un dataframe
+    df_Anova_B <- car::Anova(model_B) %>%  
+      data.frame() %>%
+      tibble::rownames_to_column(var = "Fuente") %>%
+      dplyr::add_row( Fuente = "Total", Sum.Sq = sum(.$Sum.Sq), 
+                      Df = sum(.$Df), F.value = NA, Pr..F. = NA) %>%
+      dplyr::transmute(Fuente, 
+                       SS_ = Sum.Sq, 
+                       Df, 
+                       MS_ = Sum.Sq/Df,
+                       F0 = F.value,  
+                       Pval = Pr..F. ) %>%
+      dplyr::mutate_if(is.numeric,round,digits = 3)
+    
+    ##Parsear tabla de ANOVA(sin Bloque) en un dataframe
+    df_Anova_NB <- car::Anova(model_NB) %>%  
+      data.frame() %>%
+      tibble::rownames_to_column(var = "Fuente") %>%
+      add_row( Fuente = "Total", Sum.Sq = sum(.$Sum.Sq), 
+               Df = sum(.$Df), F.value = NA, Pr..F. = NA) %>%
+      dplyr::transmute(Fuente, 
+                       SS_ = Sum.Sq, 
+                       Df, 
+                       MS_ = Sum.Sq/Df,
+                       F0 = F.value,  
+                       Pval = Pr..F. ) %>%
+      dplyr::mutate_if(is.numeric,round,digits = 3)
+    
+    #df_Anova_B  #Anova con Bloque
+    #model_B
+    #df_Anova_NB  #Anova sin Bloque
+    #model_NB
+    
+    #####-------- POST HOC! CON BLOQUE
+    ### Fisher
+    lsd_groups <- agricolae::LSD.test(model_B, "X")$groups
+    #lsd_mse <- LSD.test(df_lm, "X")$statistics[1] ## MSE
+    #lsd_est <- LSD.test(df_lm, "X")$statistics[5] ## T-estadistico
+    #lsd_SD <- LSD.test(df_lm, "X")$statistics[6] ## LSD
+    lsd_groups <- df_reorder %>% dplyr::group_by(X) %>% 
+      dplyr::summarise(Y = mean(Y)) %>% 
+      dplyr::left_join(lsd_groups, by = "Y")
+    lsd_statistics <- tibble::as_tibble(agricolae::LSD.test(model_B, "X")$statistics) #Estadisticos generales
+    
+    ### Tukey
+    tukey_groups <- agricolae::HSD.test(model_B, "X")$groups
+    #tukey_mse <- HSD.test(df_lm, "X")$statistics[1] ## MSE
+    #tukey_est <- HSD.test(df_lm, "X")$parameters[4] ## q-estadistico
+    #tukey_SD <- HSD.test(df_lm, "X")$statistics[5] ## HSD
+    tukey_groups <- df_reorder %>% dplyr::group_by(X) %>% 
+      dplyr::summarise(Y = mean(Y)) %>% 
+      dplyr::left_join(tukey_groups, by = "Y")
+    tukey_statistics <- as_tibble(agricolae::HSD.test(model_B, "X")$statistics) %>% 
+      dplyr::transmute(MSerror, Df, Mean, CV, StudRange = HSD.test(model_B, "X")$parameters[[4]], HSD = MSD) #Estadisticos generales
+    
+    #####----------- Construye base de datos
+    DB <- DB %>% dplyr::add_row(
+      id = L,
+      data = list(df),
+      anova = list(df_Anova_B),
+      a = a,
+      b = b,
+      alfa = 0.05,
+      mu = round(mu, 2),
+      sigma = round(sigma, 2),
+      #Con el Bloque
+      Fes = round(df_Anova_B[1,5], digits = 3),
+      Fcr = round(qf(alfa,df_Anova_B[1,3],df_Anova_B[3,3],
+                     lower.tail = F),3), 
+      #df_Anova_B[3,3] son los gdL del Error
+      signif = dplyr::case_when(
+        Fes >= Fcr ~ "Signif",
+        Fes < Fcr ~ "No signif"),
+      H0 = dplyr::case_when(
+        Fes >= Fcr ~ "Se rechaza H0",
+        Fes < Fcr ~ "No se rechaza H0"),
+      #Sin el Bloque
+      anova_NB = list(df_Anova_NB),
+      Fes_NB = round(df_Anova_NB[1,5], digits = 3),
+      Fcr_NB = round(qf(alfa,df_Anova_NB[1,3],df_Anova_NB[2,3],
+                        lower.tail = F),3),
+      signif_NB = dplyr::case_when(
+        Fes_NB >= Fcr_NB ~ "Signif",
+        Fes_NB < Fcr_NB ~ "No signif"),
+      H0_NB = dplyr::case_when(
+        Fes_NB >= Fcr_NB ~ "Se rechaza H0",
+        Fes_NB < Fcr_NB ~ "No se rechaza H0"),
+      #Post-Hoc
+      lsd = list(lsd_statistics),
+      lsd_groups = list(lsd_groups),
+      tukey = list(tukey_statistics),
+      tukey_groups = list(tukey_groups))
+  }
+  
+  ######------- Metadatos de la base de datos
+  DB <- metadataDB(DB, "AB", "data")
+  
+  ###--- Actualización del Directorio
+  actualizarDirectorio(DB, Directorio)
+  exportDB(DB)
+  
+  return(DB)
+}
+
+## Generador de preguntas ------------------------
+#' Anova 1F + Bloque: Generador de Preguntas
+#'
+#' Ver 2.2 - Integración al Directorio
+#' Ver 2.1 - Integracion del idioma con tablas externas
+#' Ver 2.0 - Solo HTML
+#'
+#' @param DB Tabla de datos muestrales a usar para la generación de preguntas
+#' @param Q Numero de pregunas a generar
+#' @param format Formato para los enunciados de preguntas. "HTML" o "LaTeX".
+#' @param lang Eng o Esp. Idiomas para los enunciados
+#' @param silent Si `TRUE`, enonces no se abre el archivo de texto generado
+#'
+#' @return Una tabla de datos, se guarda en un archivo, y se puede asignar a un objeto
+#' @export
+#'
+#' @examples
+question1FBlock <- function(DB,Q,format = "HTML",lang = "Esp", silent = T){
+  DBorigin <- attr(DB, "DBname")
+  ####------- Enunciados
+  ## ARMAR TODO EN UNA TABLA EXTERNA!!
+  #statement <- case_when(lang == "Esp" ~ read_delim("1FBlock_Statement.txt", delim ="\n", col_names = F),
+  #                       lang == "Eng" ~ read_delim("1FBlock_Statement - ENG.txt", delim ="\n", col_names = F)) %>% 
+  #  mutate(num = str_sub(X1,2,2))
+  
+  ####------- Enunciados
+  statement <- readr::read_delim("1FBloque_Statement.csv", delim ="\t") 
+  #X1: el enunciado, num: el numero de enunciado, Lang: Esp o Eng
+  
+  #[1] es Esp, [2] es Eng
+  St_datos <- c("\n\n </li> <p> A continuación se presentan la tabla con los datos del exerimento: </p> \n %T% ",
+                "\n\n </li> <p> Below, you're presented with the data from the experiment: </p> \n %T% ")
+  
+  anovT <- c("\n A continuación, se presenta parcialmente la tabla de ANOVA generada con los datos. \n %A%",
+             "\n Below, you're presented with a partial ANOVA table generated from the data. \n %A%")
+  
+  Fconf <- c("\n <p> Para una prueba con 95% de confianza, con un modelo que  incorpora los bloques en el Anova, usa un valor de F critico de %F%  </p>\n",
+             "\n <p> For a test with 95% confidence, when using a model that includes the Blocking variable in the ANOVA, consider a critical F value of %F%  </p>\n")
+  
+  Fconf_NB <- c("<p> Para realizar un analisis a un modelo donde no se consideren los bloques, usa un valor de F critico de %FnB%  </p>\n",
+                "<p> For an analysis in which the Blocking variable isn't included, use a  critical F value of %FnB%  </p>\n")
+  
+  Tukval <- c("<p> Para realizar la prueba de Tukey, considera un valor de la distribución Tukey(q) de %ts%  </p>\n",
+              "<p> To perform the Tukey test, consider a Tukey's q-distribution value of %ts%  </p>\n")
+  
+  
+  
+  ####----- Incialización: Cuantas preguntas a generar
+  #Q <- 10
+  #outpath <- paste0(out,".txt")
+  
+  ####-------- Genera tabla de Preguntas
+  Ques <- tibble::tibble(
+    i = 1:Q,
+    id = sample(DB$id, Q, replace = TRUE),
+    num = sample(statement$num,Q, replace = TRUE),
+    type = "t", 
+    Topic = "B",
+    code = stringr::str_c(sprintf("%02d",as.numeric(i)),
+                          Topic,
+                          sprintf("%02d",as.numeric(num)),
+                          type,
+                          sprintf("%02d",as.numeric(id)))
+  ) #Indice de Pregunta, Tema, Numero de Enunciado, Tipo, ID del Banco de Datos
+  
+  ####------- Adiciona statements y datos a la Tabla de Preguntas
+  Ques <- Ques %>% dplyr::mutate(
+    statem = statement[statement$Lang == "Esp",]$X1[match(Ques$num, statement$num)],
+    statemENG = statement[statement$Lang == "Eng",]$X1[match(Ques$num, statement$num)],
+    
+    statem = stringr::str_c(statem, St_datos[1], anovT[1]),
+    statemENG = stringr::str_c(statemENG, St_datos[2], anovT[2]),
+    
+    table = DB$data[match(Ques$id, DB$id)],
+    table2 = DB$anova[match(Ques$id, DB$id)],
+    #out = NA) 
+    z = NA, z_Esp = NA, z_Eng = NA)
+  
+  #Ver 2.1 - Reemplazar out por z.
+  
+  ## Reemplaza strings.
+  #DB$data[match(DB$id,Ques$id)]
+  #str_replace_all(Ques$statem, "%O%", "\n")
+  
+  ######------------ METADATOS DE LA TABLA
+  Ques <- metadataDB(Ques,"AB","ques")
+  attr(Ques,"DBorigin") <- DBorigin
+  
+  ###--- Actualización del Directorio
+  actualizarDirectorio(Ques, Directorio)
+  
+  ## Ver 2.1 -- Sobre la implementacion del idioma.
+  ### "Fconf", "FconfNB", "Tukval" son vectores. [1] es español, [2] es ingles.
+  
+  ####----------------- IMPRIME ENUNCIADOS 
+  wd <- here::here("doetest_out", "reportes")
+  outpath <- here::here(wd,paste0(attr(Ques, "DBname"),".txt"))
+  
+  z <- c()
+  z_Eng <- c()
+  
+  sink(outpath)
+  for (j in 1:length(Ques$i)){ ## Pregunta por pregunta
+    
+    ###----------------------- ESPAÑOL
+    z[j] <- Ques$statem[j]
+    z[j] <- stringr::str_replace(z[j], "([0-9])", paste0("",Ques$code[j]))
+    z[j] <- stringr::str_replace(z[j], "%a%", as.character(DB$a[match(Ques$id[j],DB$id)])) #Niveles de A
+    z[j] <- stringr::str_replace(z[j], "%b%", as.character(DB$a[match(Ques$id[j],DB$id)])) #Niveles de B
+    z[j] <- stringr::str_replace_all(z[j], "%V%", "\n  </p> <li>") #Empieza lista de variables
+    z[j] <- stringr::str_replace_all(z[j], "%O%", "\n  </li><li>") #Lista de variables
+    
+    #Generacion de tablas
+    if (format == "HTML"){
+      ### HTML ###
+      tabl <- knitr::kable(
+        Ques$table[j], "html", 
+        caption = "Tabla de datos",
+        padding = 5, 
+        table.attr = "class=\"ic-Table ic-Table--condensed ic-Table--striped ic-Table--hover-row\" style=\" width: 400px; \"") %>% 
+        kableExtra::kable_minimal()
+      tablAnov <- knitr::kable(
+        Ques$table2[j], "html", 
+        caption =  "Tabla de Anova",
+        padding = 5, 
+        table.attr = "class=\"ic-Table ic-Table--condensed ic-Table--striped ic-Table--hover-row\" style=\" width: 400px; \"") %>% 
+        kableExtra::kable_minimal()
+    }
+    
+    z[j] <- stringr::str_replace(z[j], "%T%",  tabl)
+    z[j] <- stringr::str_replace(z[j], "%A%",  tablAnov)
+    z[j] <- stringr::str_c(z[j], "\n", Fconf[1], "\n",
+                           Fconf_NB[1],"\n",Tukval[1])
+    z[j] <- stringr::str_replace("%F%", as.character(DB$Fcr[match(Ques$id[j],DB$id)] %>% round(digits = 3))) %>%
+      stringr::str_replace("%FnB%", as.character(DB$Fcr_NB[match(Ques$id[j],DB$id)] %>% round(digits = 3))) %>%
+      stringr::str_replace("%ts%", as.character(DB$tukey[[match(Ques$id[j],DB$id)]][5] %>% round(digits = 3)))
+    
+    Ques$z[j] <- z[j] 
+    Ques$z_Esp[j] <- z[j] 
+    
+    ###----------------------- INGLES
+    z_Eng[j] <- Ques$statemENG[j]
+    z_Eng[j] <- stringr::str_replace(z_Eng[j], "([0-9])", 
+                                     paste0("",Ques$code[j]))
+    z_Eng[j] <- stringr::str_replace(z_Eng[j], "%a%", as.character(DB$a[match(Ques$id[j],DB$id)])) #Niveles de A
+    z_Eng[j] <- stringr::str_replace(z_Eng[j], "%b%", as.character(DB$a[match(Ques$id[j],DB$id)])) #Niveles de B
+    z_Eng[j] <- stringr::str_replace_all(z_Eng[j], "%V%", "\n  </p> <li>") #Empieza lista de variables
+    z_Eng[j] <- stringr::str_replace_all(z_Eng[j], "%O%", "\n  </li><li>") #Lista de variables
+    
+    #Generacion de tablas
+    if (format == "HTML"){
+      ### HTML ###
+      tabl <- knitr::kable(
+        Ques$table[j], "html", 
+        caption = "Dataset",
+        padding = 5, 
+        table.attr = "class=\"ic-Table ic-Table--condensed ic-Table--striped ic-Table--hover-row\" style=\" width: 400px; \"") %>% 
+        kableExtra::kable_minimal()
+      tablAnov <- knitr::kable(
+        Ques$table2[j], "html", 
+        caption = "ANOVA table", 
+        padding = 5, 
+        table.attr = "class=\"ic-Table ic-Table--condensed ic-Table--striped ic-Table--hover-row\" style=\" width: 400px; \"") %>% 
+        kableExtra::kable_minimal()
+    } #TODO: format == "LaTeX"
+    
+    z_Eng[j] <- stringr::str_replace(z_Eng[j], "%T%",  tabl)
+    z_Eng[j] <- stringr::str_replace(z_Eng[j], "%A%",  tablAnov)
+    z_Eng[j] <- stringr::str_c(z_Eng[j], "\n", Fconf[2], "\n", 
+                               Fconf_NB[2],"\n",Tukval[2])
+    z_Eng[j] <- stringr::str_replace("%F%", as.character(DB$Fcr[match(Ques$id[j],DB$id)] %>% round(digits = 3))) %>%
+      stringr::str_replace("%FnB%", as.character(DB$Fcr_NB[match(Ques$id[j],DB$id)] %>% round(digits = 3))) %>%
+      stringr::str_replace("%ts%", as.character(DB$tukey[[match(Ques$id[j],DB$id)]][5] %>% round(digits = 3)))
+    
+    Ques$z_Eng[j] <- z_Eng[j]     
+    
+    cat("\n")
+    cat("\n <p> ")
+    cat("\n")
+    if (lang == "Esp"){
+      cat(z[j])
+    }else if(lang == "Eng"){
+      cat(z_Eng[j])
+    }
+    cat("\n")
+  }
+  #sink()
+  closeAllConnections()   # .........................
+  if(silent == F){
+    file.show(outpath)
+  }
+  
+  exportDB(Ques)
+  
+  
+  #######----------- REPORTE DE RESULTADOS -----------------######
+  ###----- Datos de encabezado
+  #wd <- "D:/Documents/ITESM/IBT21/BT2004B/003 - Actividades/Examen/DB/Output/"
+  outpath2 <- here::here(wd,paste0(attr(Ques, "DBname"),"_RES", ".txt"))
+  
+  sink(outpath2)
+  #on.exit(sink())
+  cat("Inicializando.... Base de datos de Preguntas","\n")
+  cat("   id: ", attr(Ques, "id_bytes"), "\n")
+  cat("   id: ", attr(Ques, "id_pokemon"), "\n")
+  cat("- Elaborado en: ", attr(Ques,"Fecha"), "\n")
+  cat("- Utilizando datos de la tabla: ", DBorigin, "\n")
+  cat("- Para el tema: ", attr(Ques,"Tema"),"\n")
+  cat("- Lista de problemas generados: ",attr(Ques, "Elementos"),"\n\n\n")
+  
+  ## Generacion de reporte para cada pregunta
+  for(i in 1:length(Ques$i)){
+    rep_Q_AB(DB,Ques,i)
+  }
+  #sink()
+  closeAllConnections()   # .........................
+  if(silent == F){
+    file.show(outpath2)
+  }
+  
+  return(Ques)
+}
+
+
+#### TEMA 5 - Diseño 2^k -------------------
+
+## Generador de datos ----------------------------
+#' Diseño 2^k: Generador de datos muestrales
+#'
+#' Ver 2.1.0 - Integración del directorio
+#' Ver 2.0.0 - Inicial
+#'
+#' @param r  Numero de sets de datos a generar
+#'
+#' @return Una tabla de datos, se guarda en un archivo, y se puede asignar a un objeto
+#' @export
+#'
+#' @examples
+gen2k <- function(r){
+  
+  ####-------- Incializa la Base de Datos
+  DB <- tibble::tibble(id = numeric(),
+                       data = list(),
+                       anova = list(),
+                       k = numeric(),
+                       n = numeric(),
+                       alfa = numeric(),
+                       mu = numeric(),
+                       sigma = numeric(),
+                       Fcr = numeric(),
+                       sign = list(),
+                       CoEf = list(),
+                       EqR = character(),
+                       Fit = list(),
+                       Fit_Min = list(),
+                       Fit_Max = list()
+  )
+  
+  
+  #### Generador de ANOVAs
+  for (L in 1:r) { #10 SETS
+    n <- sample(c(2,2,3,3,3,4),1) #Replicas
+    #k <- sample(c(3,3,3,3,4,4,5),1) #Factores
+    k <- 3
+    mu <- abs(runif(1,1,100))
+    sigma <- abs(runif(1,1,100))/(mu)
+    
+    names <- c()
+    #Selecciona un vector para los nombres de los tratamientos segun el numero de tratamientos
+    if(k == 3){
+      names <- c("A","B","C")
+    }else if(k == 4){
+      names <- c("A","B","C","D")
+    }else if(k == 5){
+      names <- c("A","B","C","D","E")}
+    
+    ###------- Genera Datos
+    df <- AlgDesign::gen.factorial(2,k, varNames = names) 
+    Y0 <- matrix(abs(rnorm(2^k,mu,sigma))) # Primera columna se genera en aleatoriamente
+    Y0 <- round(Y0, digits = 2) #Redondear a dos digitos
+    Y <- Y0
+    df <- df %>% tibble::add_column(Y, .name_repair = make.unique)   
+    for (i in 1:(n-1)){ #Se añadiran nuevas filas según el número de replicas
+      Y <- numeric()
+      for (j in 1:length(Y0)){
+        Y[j] <- abs(rnorm(1,Y0[j],sd(Y0))) #Tratamientos son coherentes entre replicas
+      } 
+      Y <- matrix(round(Y, digits = 2)) #Redondear
+      df <- df %>% tibble::add_column(Y, .name_repair = make.unique) #Añadir las columnas de replicas generadas
+    }
+    #df
+    
+    
+    ###------- Genera ANOVA
+    df_reorder <- df %>% tidyr::gather(key="rep", value = "Y", Y:last_col()) %>% dplyr::select(-rep) #Reordena replicas en una columna
+    model <- lm(Y~(.)^6,df_reorder) #Genera modelo (0rden^5 para considerar todas las interacciones)
+    
+    
+    df_Anova <- car::Anova(model) %>%  ##Parsear tabla de ANOVA en un dataframe
+      data.frame() %>%
+      tibble::rownames_to_column(var = "Fuente") %>%
+      dplyr::add_row( Fuente = "Total", Sum.Sq = sum(.$Sum.Sq), 
+                      Df = sum(.$Df), F.value = NA, Pr..F. = NA) %>%
+      dplyr::transmute(Fuente, 
+                       SS_ = Sum.Sq, 
+                       Df, 
+                       MS_ = Sum.Sq/Df,
+                       F0 = F.value,  #)%>%
+                       Pval = Pr..F. ) %>%
+      dplyr::mutate_if(is.numeric,round,digits = 3)
+    
+    
+    ###-------- Modelo de Regresion
+    df_AnovaT <- df_Anova %>% dplyr::slice(1:(length(df_Anova$Df)-2)) #ANOVA Sin las ultimas 2 filas (Error y Total)
+    Fcr <- qf(0.05,df1 = 1, df2 =((n-1)*(2^k)),lower.tail=F) #F critico. Mismo para todos los factores 2^k (mismo Df)
+    
+    df_Sig <- df_AnovaT$Fuente[df_AnovaT$F0 > Fcr] #Los significativos, según F vs Fcr. Un vector de tipo chr
+    
+    df_CoEf <- as.data.frame((coefficients(model)))  %>% 
+      tibble::rownames_to_column("Factor") %>% 
+      dplyr::transmute(Factor,Coef = (coefficients(model)), Eff = Coef*2)   #Guarda Coeficientes y Efectos en un DF
+    df_CoEf <- df_CoEf %>% mutate_if(is.numeric, round,digits=3) %>% 
+      dplyr::filter_all(any_vars(. %in% c("(Intercept)",df_Sig))) #Filtra para solo quedarse con los significativos
+    #df_CoEf #Dataframe - extracto de los coeficientes, solo considerando los significativos + Interseccion
+    
+    # (!) Expresión para arrojar la ecuación de regresión
+    df_Eq <- stringr::str_c("y = ", df_CoEf[1,2])
+    for (i in 2:length(df_CoEf$Factor)){
+      df_Eq <- stringr::str_c(df_Eq," + ",as.character(df_CoEf[i,2]), " ", df_CoEf[i,1])
+    }
+    
+    ###------- Predicción
+    #?reformulate()
+    model_abr <- lm(stats::reformulate(df_Sig, "Y"), data = df_reorder) #Generar modelo solo con los significativos
+    df_fit <- df_reorder %>% dplyr::mutate(Y_fit = fitted(model_abr)) #Guarda las predicciones en un dataframe
+    
+    #Predicción: Cual es el máximo?
+    df_fit_Max <- df_fit%>% 
+      dplyr::arrange(desc(Y_fit)) %>% 
+      dplyr::slice_head(n=1)
+    #df_fit_Max
+    
+    #Predicción: Cual es el mínimo?
+    df_fit_Min <- df_reorder %>% 
+      dplyr::mutate(Y_fit = fitted(model_abr)) %>% 
+      dplyr::arrange(Y_fit) %>% 
+      dplyr::slice_head(n=1)
+    #df_fit_Min
+    
+    
+    #####----------- Construye base de datos
+    DB <- DB %>% dplyr::add_row(id = L,
+                                data = list(df),
+                                anova = list(df_Anova),
+                                k = k,
+                                n = n,
+                                alfa = 0.05,
+                                mu = round(mu, 2),
+                                sigma = round(sigma, 2),
+                                Fcr = round(Fcr, 3),
+                                sign = list(df_Sig),
+                                CoEf = list(df_CoEf),
+                                EqR = df_Eq,
+                                Fit = list(df_fit),
+                                Fit_Min = list(df_fit_Max),
+                                Fit_Max = list(df_fit_Min)
+    )
+    
+  }
+  
+  ######------- Metadatos de la base de datos
+  DB <- metadataDB(DB, "2k", "data")
+  
+  ###--- Actualización del Directorio
+  actualizarDirectorio(DB, Directorio)
+  exportDB(DB)
+  
+  return(DB)
+}
+
+## Generador de preguntas ------------------------
+#' Diseño 2^k: Generador de preguntas
+#' 
+#' Ver 2.2.0 - Integración del directorio
+#' Ver 2.1.0 - Incorporacion de idioma
+#' Ver 2.0.0 - Inicial
+#'
+#' @param DB Tabla de datos muestrales a usar para la generación de preguntas
+#' @param Q Numero de pregunas a generar
+#' @param format Formato para los enunciados de preguntas. "HTML" o "LaTeX".
+#' @param lang Eng o Esp. Idiomas para los enunciados
+#' @param silent Si `TRUE`, enonces no se abre el archivo de texto generado
+#'
+#' @return  Una tabla de datos, se guarda en un archivo, y se puede asignar a un objeto
+#' @export
+#'
+#' @examples
+question2k <- function(DB,Q, format = "HTML", lang = "Esp", silent = T){
+  DBorigin <- attr(DB, "DBname")
+  ####------- Enunciados
+  statement <- readr::read_delim("2k_Statement.csv", delim ="\t") 
+  #X1: el enunciado, num: el numero de enunciado, Lang: Esp o Eng
+  
+  #[1] es Esp, [2] es Eng
+  St_datos <- c("\n\n </li> <p> A continuación se presentan la matriz de diseño (en unidades codificadas) y los resultados de %n% réplicas: </p> \n %T% ",
+                "\n\n </li> <p> Below, the design matrix for the experiment (in codified units) and the results of %n% replicates: </p> \n %T% ")
+  Fconf <- c("\n <p> Para un 95% de confianza, considera un valor de F critico de %F%  </p>\n",
+             "\n <p> For a test with 95% confidence, consider a critical F value of %F%  </p>\n")
+  
+  
+  ####----- Incialización: Cuantas preguntas a generar
+  #Q <- 10
+  wd <- here::here("doetest_out", "reportes")
+  
+  ####-------- Genera tabla de Preguntas
+  Ques <- tibble(
+    i = 1:Q,
+    id = sample(DB$id, Q, replace = TRUE),
+    num = sample(statement$num,Q, replace = TRUE),
+    topic = "k",
+    code = stringr::str_c(sprintf("%02d",as.numeric(i)),
+                          Topic,
+                          sprintf("%02d",as.numeric(num)),
+                          type,
+                          sprintf("%02d",as.numeric(id)))
+  )
+  
+  ####------- Adiciona statements y datos a la Tabla de Preguntas
+  Ques <- Ques %>% dplyr::mutate(
+    statem = statement[statement$Lang == "Esp",]$X1[match(Ques$num, statement$num)],
+    statemENG = statement[statement$Lang == "Eng",]$X1[match(Ques$num, statement$num)],
+    statem = stringr::str_c(statem, St_datos[1]),
+    statemENG = stringr::str_c(statemENG, St_datos[2]),
+    table = DB$data[match(Ques$id, DB$id)],
+    z = NA, z_Esp = NA, z_Eng = NA)
+  
+  #Ques$tabl
+  
+  ######------------ METADATOS DE LA TABLA
+  Ques <- metadataDB(Ques,"2k","ques")
+  attr(Ques,"DBorigin") <- DBorigin
+  
+  ###--- Actualización del Directorio
+  actualizarDirectorio(Ques, Directorio)
+  
+  ## Reemplaza strings.
+  #DB$data[match(DB$id,Ques$id)]
+  #str_replace_all(Ques$statem, "%O%", "\n")
+  
+  z <- c()
+  z_Eng <- c()
+  
+  wd <- here::here("doetest_out", "reportes")
+  outpath <- here::here(wd,paste0(attr(Ques, "DBname"),".txt"))
+  ####----------------- IMPRIME ENUNCIADOS 
+  sink(outpath)
+  for (j in 1:length(Ques$i)){
+    
+    ###----------------------- ESPAÑOL
+    z[j] <- Ques$statem[j]
+    z[j] <- stringr::str_replace(z[j], "([0-9])", paste0("",Ques$code[j]))
+    z[j] <- stringr::str_replace_all(z[j], "%V%", "\n  </p> <li>")
+    z[j] <- stringr::str_replace_all(z[j], "%O%", "\n  </li><li>")
+    z[j] <- stringr::str_replace(z[j], "%n%", as.character(DB$n[match(Ques$id[j],DB$id)]))
+    
+    #Generación de tablas
+    if (format == "HTML"){
+      #### HTML ####
+      tabl <- knitr::kable(Ques$table[j], "html", 
+                           caption = "Tabla de datos",
+                           padding = 5, 
+                           table.attr = "class=\"ic-Table ic-Table--condensed ic-Table--striped ic-Table--hover-row\" style=\" width: 400px; \"") %>% 
+        kableExtra::kable_minimal()
+    } #TODO: format == "LaTeX"
+    
+    z[j] <- stringr::str_c(z[j], "\n", Fconf[1]) %>%
+      stringr::str_replace("%T%",  tabl) %>%
+      stringr::str_replace("%F%", as.character(DB$Fcr[match(Ques$id[j],DB$id)] %>% round(digits = 3)))
+    
+    Ques$z[j] <- z[j] 
+    Ques$z_Esp[j] <- z[j] 
+    
+    ###----------------------- INGLES
+    z_Eng[j] <- Ques$statemENG[j]
+    z_Eng[j] <- stringr::str_replace(z_Eng[j], "([0-9])", paste0("",Ques$code[j]))
+    z_Eng[j] <- stringr::str_replace_all(z_Eng[j], "%V%", "\n  </p> <li>")
+    z_Eng[j] <- stringr::str_replace_all(z_Eng[j], "%O%", "\n  </li><li>")
+    z_Eng[j] <- stringr::str_replace(z_Eng[j], "%n%", as.character(DB$n[match(Ques$id[j],DB$id)]))
+    
+    #Generación de tablas
+    if (format == "HTML"){
+      #### HTML ####
+      tabl <- knitr::kable(Ques$table[j], "html", 
+                           caption = "Dataset",
+                           padding = 5, 
+                           table.attr = "class=\"ic-Table ic-Table--condensed ic-Table--striped ic-Table--hover-row\" style=\" width: 400px; \"") %>% 
+        kableExtra::kable_minimal()
+    } #TODO: format == "LaTeX"
+    
+    z_Eng[j] <- stringr::str_c(z_Eng[j], "\n", Fconf[2]) %>%
+      stringr::str_replace("%T%",  tabl) %>%
+      stringr::str_replace("%F%", as.character(DB$Fcr[match(Ques$id[j],DB$id)] %>% round(digits = 3)))
+
+    Ques$z_Eng[j] <- z_Eng[j] 
+    
+    
+    #out[j] <- str_replace(out[j], "%F%", as.character(DB$Fcr[match(Ques$id[j],DB$id)] %>% round(digits = 3)))
+    cat("\n")
+    cat("\n <p> ")
+    if (lang == "Esp"){
+      cat(z[j])
+    }else if(lang == "Eng"){
+      cat(z_Eng[j])
+    }
+    cat("\n")
+    cat("\n")
+    #cat(str_replace(Fconf, "%F%", as.character(DB$Fcr[match(Ques$id[j]
+  }
+  #sink()
+  closeAllConnections()   # .........................
+  if(silent == F){
+    file.show(outpath)
+  }
+  
+  exportDB(Ques)
+  
+  
+  #######----------- REPORTE DE RESULTADOS -----------------######
+  ###----- Datos de encabezado
+  #wd <- "D:/Documents/ITESM/IBT21/BT2004B/003 - Actividades/Examen/DB/Output/"
+  outpath2 <- here::here(wd,paste0(attr(Ques, "DBname"),"_RES", ".txt"))
+  
+  sink(outpath2)
+  #on.exit(sink())
+  cat("Inicializando.... Base de datos de Preguntas","\n")
+  cat("   id: ", attr(Ques, "id_bytes"), "\n")
+  cat("   id: ", attr(Ques, "id_pokemon"), "\n")
+  cat("- Elaborado en: ", attr(Ques,"Fecha"), "\n")
+  cat("- Utilizando datos de la tabla: ", DBorigin, "\n")
+  cat("- Para el tema: ", attr(Ques,"Tema"),"\n")
+  cat("- Lista de problemas generados: ",attr(Ques, "Elementos"),"\n\n\n")
+  
+  ## Generacion de reporte para cada pregunta
+  for(i in 1:length(Ques$i)){
+    rep_Q_2k(DB,Ques,i)
+  }
+  #sink()
+  closeAllConnections()   # .........................
+  if(silent == F){
+    file.show(outpath2)
+  }
+  
+  return(Ques)
+}
+
+
+#' Diseño 2^k: Generador de preguntas con enfasis en Regresión Lineal
+#' 
+#' Ver 2.2.0 - Integración del directorio
+#' Ver 2.1.0 - Incorporacion de idioma
+#' Ver 2.0.0 - Inicial
+#'
+#' @param DB Tabla de datos muestrales a usar para la generación de preguntas
+#' @param Q Numero de pregunas a generar
+#' @param format Formato para los enunciados de preguntas. "HTML" o "LaTeX".
+#' @param lang Eng o Esp. Idiomas para los enunciados
+#' @param silent Si `TRUE`, enonces no se abre el archivo de texto generado
+#'
+#' @return  Una tabla de datos, se guarda en un archivo, y se puede asignar a un objeto
+#' @export
+#'
+#' @examples
+question2k_reg <- function(DB,Q, format = "HTML", lang = "Esp", silent = T){
+  DBorigin <- attr(DB, "DBname")
+  ####------- Enunciados
+  statement <- readr::read_delim("2k_Statement.csv", delim ="\t") 
+  #X1: el enunciado, num: el numero de enunciado, Lang: Esp o Eng
+  
+  #[1] es Esp, [2] es Eng
+  St_datos <- c("\n\n </li> <p> A continuación se presentan la matriz de diseño (en unidades codificadas) y los resultados de %n% réplicas: </p> \n %T% ",
+                "\n\n </li> <p> Below, the design matrix for the experiment (in codified units) and the results of %n% replicates: </p> \n %T% ")
+  Fconf <- c("\n <p> Para un 95% de confianza, considera un valor de F critico de %F%  </p>\n",
+             "\n <p> For a test with 95% confidence, consider a critical F value of %F%  </p>\n")
+  RegrEq <- c("\n <p> A partir de estos datos, se obtuvo la siguiente ecuación de regresión abreviada (en unidades codificadas): </p> %R% ",
+              "\n <p> From this data, the following abreviated regression model (in codified units) was generated: </p> %R% ")
+  
+  
+  ####----- Incialización: Cuantas preguntas a generar
+  #Q <- 10
+  #outpath <- paste0(out,".txt")
+  
+  #DB_name <- deparse(substitute(DB))
+  ####-------- Genera tabla de Preguntas
+  Ques <- tibble::tibble(
+    i = 1:Q,
+    id = sample(DB$id, Q, replace = TRUE),
+    num = sample(statement$num,Q, replace = TRUE),
+    topic = "k",
+    code = stringr::str_c(sprintf("%02d",as.numeric(i)),
+                          Topic,
+                          sprintf("%02d",as.numeric(num)),
+                          type,
+                          sprintf("%02d",as.numeric(id)))
+  )
+  
+  ####------- Adiciona statements y datos a la Tabla de Preguntas
+  Ques <- Ques %>% dplyr::mutate(
+    statem = statement[statement$Lang == "Esp",]$X1[match(Ques$num, statement$num)],
+    statemENG = statement[statement$Lang == "Eng",]$X1[match(Ques$num, statement$num)],
+    statem = stringr::str_c(statem, St_datos[1]),
+    statemENG = stringr::str_c(statemENG, St_datos[2]),
+    table = DB$data[match(Ques$id, DB$id)],
+    z = NA, z_Esp = NA, z_Eng = NA)
+  
+  #Ques$table
+  
+  ######------------ METADATOS DE LA TABLA
+  Ques <- metadataDB(Ques,"2k","ques")
+  attr(Ques,"DBorigin") <- DBorigin
+  
+  ###--- Actualización del Directorio
+  actualizarDirectorio(Ques, Directorio)
+  
+  ## Reemplaza strings.
+  #DB$data[match(DB$id,Ques$id)]
+  #str_replace_all(Ques$statem, "%O%", "\n")
+  
+  z <- c()
+  z_Eng <- c()
+  
+  wd <- here::here("doetest_out", "reportes")
+  outpath <- here::here(wd,paste0(attr(Ques, "DBname"),".txt"))
+  ####----------------- IMPRIME ENUNCIADOS 
+  sink(outpath)
+  for (j in 1:length(Ques$i)){
+    
+    ##-------------------- ESPAÑOL
+    z[j] <- Ques$statem[j]
+    z[j] <- stringr::str_replace(z[j],"([0-9])",paste0("",Ques$code[j]))
+    z[j] <- stringr::str_replace_all(z[j], "%V%", "\n  </p> <li>")
+    z[j] <- stringr::str_replace_all(z[j], "%O%", "\n  </li><li>")
+    z[j] <- stringr::str_replace(z[j], "%n%", as.character(DB$n[match(Ques$id[j],DB$id)]))
+    
+    #Generación de tablas
+    if (format == "HTML"){
+      #### HTML ####
+      tabl <- knitr::kable(Ques$table[j], "html", 
+                           caption = "Tabla de datos",
+                           padding = 5, 
+                           table.attr = "class=\"ic-Table ic-Table--condensed ic-Table--striped ic-Table--hover-row\" style=\" width: 400px; \"") %>% 
+        kableExtra::kable_minimal()
+    } #TODO: Incluir format == "LaTeX
+    
+    z[j] <- stringr::str_replace(z[j], "%T%",  tabl)
+    #out[j] <- str_replace(out[j], "%F%", as.character(DB$Fcr[match(Ques$id[j],DB$id)] %>% round(digits = 3)))
+    
+    ##-------------------- INGLES
+    z_Eng[j] <- Ques$statemENG[j]
+    z_Eng[j] <- stringr::str_replace(z_Eng[j], "([0-9])", paste0("",Ques$code[j]))
+    z_Eng[j] <- stringr::str_replace_all(z_Eng[j], "%V%", "\n  </p> <li>")
+    z_Eng[j] <- stringr::str_replace_all(z_Eng[j], "%O%", "\n  </li><li>")
+    z_Eng[j] <- stringr::str_replace(z_Eng[j], "%n%", as.character(DB$n[match(Ques$id[j],DB$id)]))
+    
+    #Generación de tablas
+    if (format == "HTML"){
+      #### HTML ####
+      tabl <- knitr::kable(Ques$table[j], "html", 
+                           caption = "Dataset",
+                           padding = 5, 
+                           table.attr = "class=\"ic-Table ic-Table--condensed ic-Table--striped ic-Table--hover-row\" style=\" width: 400px; \"") %>% 
+        kableExtra::kable_minimal()
+    } #TODO format == "LaTeX"
+    z_Eng[j] <- stringr::str_replace(z_Eng[j], "%T%",  tabl)
+    #out[j] <- str_replace(out[j], "%F%", as.character(DB$Fcr[match(Ques$id[j],DB$id)] %>% round(digits = 3)))
+    cat("\n")
+    
+    ##--------------- Adición de la Eq de Regresion
+    Reg <- stringr::str_c(as.character(DB$EqR[match(Ques$id[j],DB$id)]))
+    if(format == "HTML"){
+      Reg <- stringr::str_replace(Reg, "y", "y&#770;")
+    }else if(format == "LaTeX"){
+      Reg <- stringr::str_replace(Reg, "y", "\\hat{y}")
+    }
+    
+    #str_replace(RegrEq, "%R%", Reg)
+    z[j] <- stringr::str_c(z[j], "\n" ,RegrEq[1])
+    z[j] <- stringr::str_replace(z[j], "%R%", Reg)
+    z_Eng[j] <- stringr::str_c(z_Eng[j], "\n" ,RegrEq[2])
+    z_Eng[j] <- stringr::str_replace(z_Eng[j], "%R%", Reg)
+    
+    Ques$z[j] <- z[j] 
+    Ques$z_Esp[j] <- z[j] 
+    Ques$z_Eng[j] <- z_Eng[j] 
+    
+    #cat("\n")
+    #cat(str_replace(Fconf, "%F%", as.character(DB$Fcr[match(Ques$id[j],DB$id)] %>% round(digits = 3))))
+    
+    cat("\n <p> ")
+    if (lang == "Esp"){
+      cat(z[j])
+    }else if(lang == "Eng"){
+      cat(z_Eng[j])
+    }
+    cat("\n")
+    
+    cat("\n")
+    cat("")
+  }
+  closeAllConnections()   # .........................
+  if(silent == F){
+    file.show(outpath)
+  }
+  
+  exportDB(Ques)
+  
+  
+  #######----------- REPORTE DE RESULTADOS -----------------######
+  ###----- Datos de encabezado
+  #wd <- "D:/Documents/ITESM/IBT21/BT2004B/003 - Actividades/Examen/DB/Output/"
+  outpath2 <- here::here(wd,paste0(attr(Ques, "DBname"),"_RES", ".txt"))
+  
+  sink(outpath2)
+  #on.exit(sink())
+  cat("Inicializando.... Base de datos de Preguntas","\n")
+  cat("   id: ", attr(Ques, "id_bytes"), "\n")
+  cat("   id: ", attr(Ques, "id_pokemon"), "\n")
+  cat("- Elaborado en: ", attr(Ques,"Fecha"), "\n")
+  cat("- Utilizando datos de la tabla: ", DBorigin, "\n")
+  cat("- Para el tema: ", attr(Ques,"Tema"),"\n")
+  cat("- Lista de problemas generados: ",attr(Ques, "Elementos"),"\n\n\n")
+  
+  ## Generacion de reporte para cada pregunta
+  for(i in 1:length(Ques$i)){
+    rep_Q_2k(DB,Ques,i)
+  }
+  #sink()
+  closeAllConnections()   # .........................
+  if(silent == F){
+    file.show(outpath2)
+  }
+  
+  
+  return(Ques)
 }

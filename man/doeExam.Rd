@@ -7,6 +7,8 @@
 doeExam()
 }
 \description{
+Ver 1.3.0 - Se incorporan el framework para trabajar con los temas B y K, falta probarlo
+Ver 1.2.0 - poblarDirectorio cambio, ahora se debe llamar cada vez que se use un tema nuevo. Los temas son definidos por el parcial
 Ver 1.1.0 - Correccion para los casos donde el directorio existe, pero esta vacio
 Ver 1.0.2 -
 }

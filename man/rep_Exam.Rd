@@ -13,6 +13,7 @@ rep_Exam(Data = NULL)
 Genera un archivo de texto con las preguntas del examen.
 }
 \description{
+Ver 2.4.0 - Se incorporan el framework para trabajar con los temas B y K
 Ver 2.3.1  - Se cambian los ´on.exit(sink())´ y ´sink()´ por  ´closeAllConnections()´
 Ver 2.3 - usar los paquetes here y folders para los paths relativos
 Ver 2.2 - Se altera el input, de tal forma que se pueda usar la función justo despues de crear un examen.

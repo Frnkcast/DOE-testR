@@ -9,6 +9,9 @@ rep_PostHoc(Data)
 \arguments{
 \item{Data}{Fila de la tabla de datos a describir}
 }
+\value{
+Apoyo para la construccion de un archivo de texto
+}
 \description{
 Anova de 1 Factor: Reporte de resultados de Pruebas Post Hoc
 }

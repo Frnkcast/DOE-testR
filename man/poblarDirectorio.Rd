@@ -4,13 +4,14 @@
 \alias{poblarDirectorio}
 \title{Crear tablas para un Directorio.}
 \usage{
-poblarDirectorio(parcial = NULL, aislado = FALSE)
+poblarDirectorio(tema = NULL, aislado = FALSE)
 }
 \arguments{
-\item{parcial}{Numero del parcial a genera (1 o 2)}
+\item{tema}{Numero del tema (1-5), donde 1 = Media Muestral, 2 = Prueba de Hipotesis, 3 = Anova 1Factor, 4 = Anova 1F+Bloque, 5 = Diseño 2^k}
 
 \item{aislado}{Flag para saber si se genera un Directorio temporal o no.}
 }
 \description{
-Ver 1.0.0
+Ver 2.0.0 - Ajuste mayor: Ahora se genera tabla tema por tema. Se debe llamar a la función otra vez si se desea un tema distinto.
+Ver 1.0.0 - Inicial, se generan todas las tablas de temas del parcial
 }

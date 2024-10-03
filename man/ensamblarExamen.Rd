@@ -17,6 +17,8 @@ ensamblarExamen(Data = NULL, format = "HTML", lang = "Esp")
 Un archivo de salida, .txt, con el formato especificado
 }
 \description{
+TODO: Ajustar para cuando se hagan ejercicios de practica (input: modo = "exam" o "prac")
+Ver 2.2.0 - Se incorporan el framework para trabajar con los temas B y K
 Ver 2.1.0 - Se ajusta la implementación del idioma
 Ver 2.0.0 - Se separa de la función genExam() para facilitar el manejo de tablas de examen, y dar mas flexibilidad
 }

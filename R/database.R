@@ -144,7 +144,8 @@ metadataDB <- function(Data,Tema,Cont){
     Cont == "data" ~ "Datos muestrales",
     Cont == "ques" ~ "Preguntas formuladas",
     Cont == "stat" ~ "Templates de enunciados",
-    Cont == "exam" ~ "Examen")
+    Cont == "exam" ~ "Examen",
+    Cont == "prac" ~ "Ejercicio de practica")
   attr(Data, "Fecha") <- lubridate::now()
 
   ## adjective_pokemon internamente dentro de la función.

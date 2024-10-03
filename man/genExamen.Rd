@@ -17,6 +17,7 @@ genExamen(parcial = NULL, format = "HTML", lang = "Esp")
 Genera una tabla con los enunciados del examen, un archivo de salida de texto (HTML o LaTeX), y actualiza el directorio
 }
 \description{
+Version 2.9.0 - Se incorporan el framework para trabajar con los temas B y K
 Version 2.8.0 - Correccion del idioma y los problemas con el orden de los enunciados
 Version 2.7.4 - Se separa el ensamblador para facilitar el trabajar con la tabla y poder regenerar el formato sin tener que regenerar la tabla
 Version 2.7.3 - Correccion para que no se repitan los problemas de ANOVA.
